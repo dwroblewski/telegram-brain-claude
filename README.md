@@ -21,6 +21,14 @@ A personal Telegram bot that captures messages to your Obsidian vault and querie
 - Obsidian vault (local or git-synced)
 - Anthropic API key (for `/ask` features)
 
+**No public IP or server required.** The bot uses long-polling (not webhooks), so it works on:
+- Your local machine
+- Home server behind NAT
+- Any VM or VPS
+- Raspberry Pi
+
+Just needs outbound internet access to reach Telegram and Anthropic APIs.
+
 ## Installation
 
 ```bash
