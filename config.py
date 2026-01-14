@@ -31,6 +31,9 @@ QUERY_COOLDOWN_SECONDS = int(os.getenv("QUERY_COOLDOWN_SECONDS", "30"))
 DAILY_BUDGET_USD = float(os.getenv("DAILY_BUDGET_USD", "1.00"))
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "300"))
 
+# Query optimization
+MAX_FILES_TO_READ = int(os.getenv("MAX_FILES_TO_READ", "10"))
+
 # Git settings
 GIT_ENABLED = os.getenv("GIT_ENABLED", "true").lower() == "true"
 GIT_AUTO_PUSH = os.getenv("GIT_AUTO_PUSH", "true").lower() == "true"
