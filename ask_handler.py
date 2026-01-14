@@ -14,6 +14,7 @@ from claude_agent_sdk import (
     PermissionResultDeny,
     ToolPermissionContext,
 )
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 import config
 from logger import log_query, logger
@@ -85,6 +86,42 @@ async def enforce_read_only(
     return PermissionResultAllow(behavior="allow", updated_input=tool_input)
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((ConnectionError, TimeoutError, OSError)),
+    reraise=True,
+)
+async def _execute_query(options: ClaudeAgentOptions, question: str) -> tuple[list, float, str, dict]:
+    """
+    Execute query with retry logic for transient failures.
+
+    Returns:
+        tuple of (answer_parts, total_cost, model_used, usage_info)
+    """
+    answer_parts = []
+    total_cost = 0.0
+    model_used = "unknown"
+    usage_info = {}
+
+    async with ClaudeSDKClient(options=options) as client:
+        await client.query(question)
+
+        async for message in client.receive_response():
+            if isinstance(message, AssistantMessage):
+                if message.model:
+                    model_used = message.model
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        answer_parts.append(block.text)
+            elif isinstance(message, ResultMessage):
+                total_cost = message.total_cost_usd
+                if message.usage:
+                    usage_info = message.usage
+
+    return answer_parts, total_cost, model_used, usage_info
+
+
 async def ask_vault(question: str, model: str = None) -> dict:
     """
     Query the vault using Claude Agent SDK with ClaudeSDKClient (streaming mode).
@@ -117,38 +154,22 @@ async def ask_vault(question: str, model: str = None) -> dict:
         model=model,
     )
 
-    answer_parts = []
-    total_cost = 0.0
-    model_used = "unknown"
-    usage_info = {}
-
     logger.info(f"Starting vault query: {question[:50]}...")
 
     try:
-        async with ClaudeSDKClient(options=options) as client:
-            await client.query(question)
+        # Execute with retry logic for transient failures
+        answer_parts, total_cost, model_used, usage_info = await _execute_query(options, question)
 
-            async for message in client.receive_response():
-                if isinstance(message, AssistantMessage):
-                    if message.model:
-                        model_used = message.model
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            answer_parts.append(block.text)
-                elif isinstance(message, ResultMessage):
-                    total_cost = message.total_cost_usd
-                    if message.usage:
-                        usage_info = message.usage
-                    logger.info(f"Query completed. Model: {model_used}, Cost: ${total_cost:.4f}, Usage: {usage_info}")
+        logger.info(f"Query completed. Model: {model_used}, Cost: ${total_cost:.4f}, Usage: {usage_info}")
 
-                    # Log query event with structured logging
-                    log_query(
-                        model=model_used,
-                        question=question,
-                        tokens_in=usage_info.get("input_tokens", 0),
-                        tokens_out=usage_info.get("output_tokens", 0),
-                        cost_usd=total_cost,
-                    )
+        # Log query event with structured logging
+        log_query(
+            model=model_used,
+            question=question,
+            tokens_in=usage_info.get("input_tokens", 0),
+            tokens_out=usage_info.get("output_tokens", 0),
+            cost_usd=total_cost,
+        )
 
     except Exception as e:
         logger.error(f"Claude Agent SDK error: {e}")
