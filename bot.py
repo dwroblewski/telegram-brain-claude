@@ -6,7 +6,9 @@ Capture messages to your vault and query it with Claude AI.
 Uses python-telegram-bot v22+ API and Claude Agent SDK.
 """
 import asyncio
+import hashlib
 import logging
+import time
 from datetime import datetime
 
 from telegram import (
@@ -41,6 +43,37 @@ rate_limiter = RateLimiter(
     daily_budget_usd=config.DAILY_BUDGET_USD,
     cache_ttl_seconds=config.CACHE_TTL_SECONDS,
 )
+
+# Message deduplication
+_message_hashes: dict[str, float] = {}
+DEDUP_WINDOW_SECONDS = 300  # 5 minutes
+
+
+def _hash_message(content: str, timestamp: int) -> str:
+    """Generate hash for message deduplication."""
+    return hashlib.md5(f"{content}:{timestamp}".encode()).hexdigest()
+
+
+def is_duplicate_message(content: str, timestamp: int) -> bool:
+    """Check if message is a duplicate. Returns True if duplicate."""
+    msg_hash = _hash_message(content, timestamp)
+    now = time.time()
+
+    # Clean old hashes
+    expired = [h for h, t in _message_hashes.items() if now - t > DEDUP_WINDOW_SECONDS]
+    for h in expired:
+        del _message_hashes[h]
+
+    if msg_hash in _message_hashes:
+        return True
+
+    _message_hashes[msg_hash] = now
+    return False
+
+
+def clear_message_hashes() -> None:
+    """Clear all message hashes (for testing)."""
+    _message_hashes.clear()
 
 
 def get_forward_source(message) -> str | None:
@@ -299,6 +332,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     content = get_message_content(message)
     forward_from = get_forward_source(message)
+
+    # Check for duplicate
+    msg_timestamp = int(message.date.timestamp())
+    if is_duplicate_message(content, msg_timestamp):
+        logger.info(f"Skipping duplicate message: {content[:50]}...")
+        await message.set_reaction([ReactionTypeEmoji("👀")])  # Eyes = already seen
+        return
 
     now = datetime.now()
     filename = generate_filename(now)
