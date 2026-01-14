@@ -7,6 +7,7 @@ Uses python-telegram-bot v22+ API and Claude Agent SDK.
 """
 import asyncio
 import hashlib
+import subprocess
 import time
 from datetime import datetime
 
@@ -201,6 +202,7 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 *Info:*
 • `/status` → Capture stats
+• `/health` → System health check
 • `/help` → This message
 
 *Examples:*
@@ -208,6 +210,60 @@ async def handle_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 `/q summarize my recent notes`
 """
     await message.reply_text(help_text, parse_mode="Markdown")
+
+
+async def check_health() -> dict[str, bool]:
+    """Check health of all system components."""
+    import os
+    health = {
+        "vault": False,
+        "git": False,
+        "claude_api": False,
+    }
+
+    # Check vault exists
+    health["vault"] = config.VAULT_PATH.exists()
+
+    # Check git status
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(config.VAULT_PATH),
+            capture_output=True,
+            timeout=5
+        )
+        health["git"] = result.returncode == 0
+    except Exception:
+        pass
+
+    # Check Claude API (lightweight - just check key exists)
+    try:
+        health["claude_api"] = bool(os.getenv("ANTHROPIC_API_KEY"))
+    except Exception:
+        pass
+
+    return health
+
+
+async def handle_health(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /health command."""
+    message = update.message
+    if not message or not message.from_user:
+        return
+
+    if message.from_user.id != config.TELEGRAM_USER_ID:
+        return
+
+    health = await check_health()
+
+    status_emoji = "✅" if all(health.values()) else "⚠️"
+    lines = [f"{status_emoji} *System Health*", ""]
+
+    for component, ok in health.items():
+        emoji = "✅" if ok else "❌"
+        lines.append(f"{emoji} {component}")
+
+    await message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
 async def _handle_vault_query(update: Update, context: ContextTypes.DEFAULT_TYPE, model: str) -> None:
@@ -380,6 +436,7 @@ def main() -> None:
 
     app.add_handler(CommandHandler("help", handle_help))
     app.add_handler(CommandHandler("status", handle_status))
+    app.add_handler(CommandHandler("health", handle_health))
     app.add_handler(CommandHandler(["ask", "a"], handle_ask))
     app.add_handler(CommandHandler(["quick", "q"], handle_quick))
 
