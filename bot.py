@@ -23,6 +23,7 @@ import config
 from note_formatter import format_note, generate_filename
 from git_ops import save_and_push_note
 from ask_handler import ask_vault
+from rate_limiter import RateLimiter
 
 # Logging
 logging.basicConfig(
@@ -33,6 +34,13 @@ logger = logging.getLogger(__name__)
 
 # Track last error for status command
 last_error: str | None = None
+
+# Rate limiter instance
+rate_limiter = RateLimiter(
+    cooldown_seconds=config.QUERY_COOLDOWN_SECONDS,
+    daily_budget_usd=config.DAILY_BUDGET_USD,
+    cache_ttl_seconds=config.CACHE_TTL_SECONDS,
+)
 
 
 def get_forward_source(message) -> str | None:
@@ -121,6 +129,12 @@ async def handle_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     today_count = get_today_count()
     lines.append(f"📊 *Today:* {today_count} captures")
+
+    # Budget info
+    user_id = message.from_user.id
+    daily_spend = rate_limiter.get_daily_spend(user_id)
+    remaining = rate_limiter.get_remaining_budget(user_id)
+    lines.append(f"💰 *Budget:* ${daily_spend:.2f} spent / ${remaining:.2f} remaining")
     lines.append("")
 
     captures = get_recent_captures(5)
@@ -176,13 +190,36 @@ async def _handle_vault_query(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not message or not message.from_user:
         return
 
-    if message.from_user.id != config.TELEGRAM_USER_ID:
+    user_id = message.from_user.id
+    if user_id != config.TELEGRAM_USER_ID:
         return
 
     question = " ".join(context.args) if context.args else ""
     if not question:
         cmd = "/ask" if model == "sonnet" else "/quick"
         await message.reply_text(f"Usage: {cmd} <your question>")
+        return
+
+    # Check rate limit
+    allowed, rate_msg = rate_limiter.check_rate_limit(user_id)
+    if not allowed:
+        await message.reply_text(f"⏳ {rate_msg}")
+        return
+
+    # Check budget
+    allowed, budget_msg = rate_limiter.check_budget(user_id)
+    if not allowed:
+        await message.reply_text(f"💰 {budget_msg}")
+        return
+
+    # Check cache
+    cached = rate_limiter.get_cached_result(user_id, question)
+    if cached:
+        response = cached["answer"]
+        if len(response) > 3900:
+            response = response[:3900] + "\n\n_[Truncated]_"
+        response += "\n\n_[Cached result]_"
+        await message.reply_text(response, parse_mode="Markdown")
         return
 
     emoji = "🔍" if model == "sonnet" else "⚡"
@@ -205,6 +242,10 @@ async def _handle_vault_query(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         stop_typing.set()
         await typing_task
+
+        # Record spend and cache result
+        rate_limiter.record_spend(user_id, result["cost_usd"])
+        rate_limiter.cache_result(user_id, question, result)
 
         response = result["answer"]
 
