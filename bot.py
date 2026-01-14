@@ -7,7 +7,6 @@ Uses python-telegram-bot v22+ API and Claude Agent SDK.
 """
 import asyncio
 import hashlib
-import logging
 import time
 from datetime import datetime
 
@@ -26,13 +25,7 @@ from note_formatter import format_note, generate_filename
 from git_ops import save_and_push_note
 from ask_handler import ask_vault
 from rate_limiter import RateLimiter
-
-# Logging
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+from logger import log_capture, log_git_op, log_rate_limit, logger
 
 # Track last error for status command
 last_error: str | None = None
@@ -346,6 +339,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     logger.info(f"Saving note: {filename}")
     result = save_and_push_note(str(config.VAULT_PATH), filename, note_content)
+
+    # Log the capture event with structured logging
+    log_capture(
+        chars=len(content),
+        has_forward=forward_from is not None,
+        filename=filename,
+    )
 
     try:
         if result["success"]:

@@ -4,8 +4,6 @@ Ask Handler - Claude Agent SDK integration for vault queries.
 Uses Claude Code's built-in tools (Read, Grep, Glob) with read-only enforcement.
 Requires ClaudeSDKClient (streaming mode) for can_use_tool callback.
 """
-import logging
-
 from claude_agent_sdk import (
     ClaudeSDKClient,
     ClaudeAgentOptions,
@@ -18,8 +16,7 @@ from claude_agent_sdk import (
 )
 
 import config
-
-logger = logging.getLogger(__name__)
+from logger import log_query, logger
 
 # Read-only tools whitelist
 READ_ONLY_TOOLS = {"Read", "Grep", "Glob", "LS"}
@@ -143,6 +140,15 @@ async def ask_vault(question: str, model: str = None) -> dict:
                     if message.usage:
                         usage_info = message.usage
                     logger.info(f"Query completed. Model: {model_used}, Cost: ${total_cost:.4f}, Usage: {usage_info}")
+
+                    # Log query event with structured logging
+                    log_query(
+                        model=model_used,
+                        question=question,
+                        tokens_in=usage_info.get("input_tokens", 0),
+                        tokens_out=usage_info.get("output_tokens", 0),
+                        cost_usd=total_cost,
+                    )
 
     except Exception as e:
         logger.error(f"Claude Agent SDK error: {e}")
