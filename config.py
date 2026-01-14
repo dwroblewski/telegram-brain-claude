@@ -26,6 +26,11 @@ MAX_BUDGET_HAIKU = float(os.getenv("MAX_BUDGET_HAIKU", "0.02"))
 MAX_TURNS_SONNET = int(os.getenv("MAX_TURNS_SONNET", "10"))
 MAX_TURNS_HAIKU = int(os.getenv("MAX_TURNS_HAIKU", "5"))
 
+# Rate limiting
+QUERY_COOLDOWN_SECONDS = int(os.getenv("QUERY_COOLDOWN_SECONDS", "30"))
+DAILY_BUDGET_USD = float(os.getenv("DAILY_BUDGET_USD", "1.00"))
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "300"))
+
 # Git settings
 GIT_ENABLED = os.getenv("GIT_ENABLED", "true").lower() == "true"
 GIT_AUTO_PUSH = os.getenv("GIT_AUTO_PUSH", "true").lower() == "true"
