@@ -349,11 +349,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     try:
         if result["success"]:
-            await message.set_reaction([ReactionTypeEmoji("👍")])
+            await message.set_reaction([ReactionTypeEmoji("👍")])  # Full success
             logger.info(f"Successfully saved and pushed: {filename}")
             last_error = None
+        elif result["file_saved"] and not result["git_committed"]:
+            await message.set_reaction([ReactionTypeEmoji("⚠️")])  # Saved but git failed
+            last_error = f"File saved but git failed: {result['error']}"
+            logger.warning(last_error)
+        elif result["file_saved"]:
+            await message.set_reaction([ReactionTypeEmoji("📝")])  # Saved, push failed
+            last_error = f"Saved but push failed: {result['error']}"
+            logger.warning(last_error)
         else:
-            await message.set_reaction([ReactionTypeEmoji("👎")])
+            await message.set_reaction([ReactionTypeEmoji("❌")])  # Save failed
             last_error = result["error"]
             logger.error(f"Failed to save: {result['error']}")
     except Exception as e:
