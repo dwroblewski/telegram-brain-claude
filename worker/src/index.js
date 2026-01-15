@@ -46,6 +46,15 @@ export default {
 
       // Telegram webhook
       if (url.pathname === '/webhook' && request.method === 'POST') {
+        // Validate Telegram webhook secret (if configured)
+        if (env.WEBHOOK_SECRET) {
+          const secretHeader = request.headers.get('X-Telegram-Bot-Api-Secret-Token');
+          if (secretHeader !== env.WEBHOOK_SECRET) {
+            console.log('Webhook auth failed: invalid or missing secret token');
+            return jsonResponse({ error: 'Unauthorized' }, 401);
+          }
+        }
+
         const update = await request.json();
         ctx.waitUntil(handleTelegramUpdate(update, env));
         return jsonResponse({ ok: true });
