@@ -1,12 +1,31 @@
-# Environment
+# Environment files with secrets
 .env
+.env.local
+.dev.vars
+
+# Wrangler
+.wrangler/
+node_modules/
+
+# Python
 venv/
 __pycache__/
 *.pyc
 
-# IDE
-.vscode/
-.idea/
+# Temp files
+*.tmp
+/tmp/
 
 # OS
 .DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Test results with vault content
+phase0-tests/*.json
+phase0-tests/test2_caching.py
+phase0-tests/test2_extended.py
+phase0-tests/test3_quality.py
+phase0-tests/model_comparison.py

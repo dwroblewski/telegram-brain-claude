@@ -1,4 +1,0 @@
-python-telegram-bot==20.7
-python-dotenv==1.0.1
-claude-agent-sdk==0.1.19
-tenacity==8.2.3

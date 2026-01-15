@@ -1,0 +1,17 @@
+name = "telegram-brain"
+main = "src/index.js"
+compatibility_date = "2026-01-14"
+# account_id set via CLOUDFLARE_ACCOUNT_ID env var
+
+# R2 bucket binding
+[[r2_buckets]]
+binding = "VAULT"
+bucket_name = "telegram-brain-vault"
+
+# Environment variables (secrets set via wrangler secret)
+# TELEGRAM_BOT_TOKEN - set via: wrangler secret put TELEGRAM_BOT_TOKEN
+# GEMINI_API_KEY - set via: wrangler secret put GEMINI_API_KEY
+# ALLOWED_USER_ID - your Telegram user ID for auth
+
+[vars]
+MODEL = "gemini-2.5-flash-lite"
