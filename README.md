@@ -2,6 +2,33 @@
 
 A serverless Telegram bot that captures notes and queries your second brain using AI.
 
+## Who This Is For
+
+You'll need comfort with:
+- Command line (npm, wrangler CLI)
+- Cloudflare account setup
+- GitHub Actions
+- Environment variables and API keys
+
+If that sounds intimidating, check out simpler approaches like Google Forms + Apps Script or local Python scripts.
+
+## Cost
+
+- **Capture:** Free (Cloudflare Worker free tier, GitHub Actions free tier, R2 free tier)
+- **Query:** A couple bucks per month in Gemini API costs, depending on usage
+
+No database, no always-on compute, no subscription fees.
+
+## How I Actually Use It
+
+This bot handles ad-hoc capture. The heavy lifting happens in Claude Code sessions where I:
+- Process the inbox and file notes into the right folders
+- Create links between related notes
+- Generate digests and summaries
+- Do research with the vault as context
+
+The bot solves mobile capture. Claude Code solves everything else. They work together.
+
 ## Architecture
 
 ```
@@ -18,6 +45,8 @@ A serverless Telegram bot that captures notes and queries your second brain usin
 ```
 
 **Why serverless?** No VM to maintain, no systemd services, auto-scaling, runs at the edge.
+
+**Why no database?** The entire vault fits in Gemini's context window (~500KB). On each query, the bot loads everything and lets the model search. Gemini's implicit caching means repeated queries are cheap and fast. No embeddings, no vector store, no sync logic.
 
 ## Commands
 
