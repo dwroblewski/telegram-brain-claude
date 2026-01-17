@@ -77,7 +77,7 @@ Setup: See `scripts/setup-github-sync.md`
 - Telegram bot token (from [@BotFather](https://t.me/BotFather))
 - Gemini API key (from [AI Studio](https://aistudio.google.com/app/apikey))
 - Your Telegram user ID (from [@userinfobot](https://t.me/userinfobot))
-- GitHub repository for your vault (for auto-sync, optional)
+- GitHub repository for your vault (for bidirectional sync)
 
 ### Configuration
 
@@ -95,7 +95,7 @@ npx wrangler secret put TELEGRAM_BOT_TOKEN
 npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put ALLOWED_USER_ID
 
-# Set secrets (optional - for auto-sync to git)
+# Set secrets (for GitHub auto-sync)
 npx wrangler secret put GITHUB_TOKEN    # Fine-grained token with Contents:write
 npx wrangler secret put GITHUB_REPO     # e.g., "username/vault-repo"
 
@@ -112,9 +112,9 @@ npx wrangler secret put GITHUB_REPO     # e.g., "username/vault-repo"
 curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<WORKER_URL>/webhook"
 ```
 
-### GitHub Auto-Sync (Optional)
+### GitHub Auto-Sync
 
-To automatically commit captures to your vault repo:
+Captures are saved to R2 instantly, but need GitHub sync to reach your vault repo (and be included in future queries).
 
 1. **Create a fine-grained GitHub token:**
    - Go to GitHub → Settings → Developer settings → Fine-grained tokens
