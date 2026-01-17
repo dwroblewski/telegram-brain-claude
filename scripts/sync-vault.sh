@@ -6,6 +6,7 @@ set -euo pipefail
 VAULT_PATH="${VAULT_PATH:-$HOME/projects/second-brain}"
 BUCKET="telegram-brain-vault"
 CONTEXT_FILE="/tmp/vault_context.md"
+VAULT_DEPTH="${VAULT_DEPTH:-3}"  # Max folder depth (default: 3 for Areas/Topic/Subtopic)
 
 # Load .env if present
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -72,7 +73,7 @@ for folder in Areas Projects Resources; do
     echo -e "\n" >> "$CONTEXT_FILE"
     ((file_count++)) || true
 
-  done < <(find "./$folder" -maxdepth 2 -name "*.md" -type f -print0 2>/dev/null)
+  done < <(find "./$folder" -maxdepth "$VAULT_DEPTH" -name "*.md" -type f -print0 2>/dev/null)
 done
 
 total_size=$(wc -c < "$CONTEXT_FILE")

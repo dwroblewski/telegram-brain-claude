@@ -119,24 +119,15 @@ else
   echo "  ✓ /ask responded (${ask_duration}s)"
 fi
 
-# Test 3: Capture test
-echo "Testing capture..."
-capture_response=$(curl -sf -X POST "$WORKER_URL/webhook" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "update_id": '"$(date +%s)"',
-    "message": {
-      "message_id": 9998,
-      "chat": {"id": '"$TELEGRAM_ALLOWED_USER_ID"'},
-      "from": {"id": '"$TELEGRAM_ALLOWED_USER_ID"'},
-      "text": "Deploy smoke test '"$(date +%Y-%m-%d_%H:%M:%S)"'"
-    }
-  }')
+# Test 3: /test endpoint (no persistence)
+echo "Testing /test endpoint..."
+test_response=$(curl -sf -X POST "$WORKER_URL/test" \
+  -H "Content-Type: application/json" || echo '{"ok":false}')
 
-if echo "$capture_response" | jq -e '.ok' >/dev/null 2>&1; then
-  echo "  ✓ Capture accepted"
+if echo "$test_response" | jq -e '.ok' >/dev/null 2>&1; then
+  echo "  ✓ /test endpoint working"
 else
-  echo "  ⚠ Capture response unclear: $capture_response"
+  echo "  ⚠ /test response unclear: $test_response"
 fi
 
 echo ""

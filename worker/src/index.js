@@ -60,11 +60,18 @@ export default {
         return jsonResponse({ ok: true });
       }
 
-      // GitHub sync endpoint (webhook from GitHub Action)
-      if (url.pathname === '/sync' && request.method === 'POST') {
-        // Optional: verify GitHub webhook signature
-        const result = await syncVaultFromGitHub(env);
-        return jsonResponse(result);
+      // Smoke test endpoint (no persistence, for deploy verification)
+      if (url.pathname === '/test' && request.method === 'POST') {
+        return jsonResponse({
+          ok: true,
+          message: 'Test endpoint reached',
+          timestamp: new Date().toISOString(),
+          checks: {
+            gemini: !!env.GEMINI_API_KEY,
+            telegram: !!env.TELEGRAM_BOT_TOKEN,
+            vault: !!env.VAULT,
+          },
+        });
       }
 
       // Export captures endpoint - list all telegram captures in R2
@@ -170,13 +177,13 @@ ${text}
  * Uses repository_dispatch to trigger sync-capture.yml workflow
  */
 async function notifyGitHub(filename, env) {
-  if (!env.GITHUB_TOKEN) {
-    console.log('GitHub sync disabled: no GITHUB_TOKEN');
+  if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
+    console.log('GitHub sync disabled: missing GITHUB_TOKEN or GITHUB_REPO');
     return;
   }
 
   const response = await fetch(
-    'https://api.github.com/repos/dwroblewski/second-brain/dispatches',
+    `https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`,
     {
       method: 'POST',
       headers: {
@@ -416,6 +423,29 @@ async function loadVaultFromR2(env) {
 }
 
 /**
+ * Sanitize user query to prevent basic prompt injection
+ */
+function sanitizeQuery(query) {
+  // Remove potential instruction overrides
+  const dangerous = [
+    /ignore (all )?(previous |above |prior )?instructions/gi,
+    /disregard (all )?(previous |above |prior )?instructions/gi,
+    /forget (all )?(previous |above |prior )?instructions/gi,
+    /you are now/gi,
+    /new instructions:/gi,
+    /system prompt:/gi,
+  ];
+
+  let sanitized = query;
+  for (const pattern of dangerous) {
+    sanitized = sanitized.replace(pattern, '[removed]');
+  }
+
+  // Limit length to prevent context stuffing attacks
+  return sanitized.slice(0, 1000);
+}
+
+/**
  * Query Gemini with vault context
  */
 async function queryGemini(env, vaultContent, query) {
@@ -426,6 +456,8 @@ async function queryGemini(env, vaultContent, query) {
     throw new Error('GEMINI_API_KEY not configured');
   }
 
+  const sanitizedQuery = sanitizeQuery(query);
+
   const prompt = `You are a helpful assistant with access to a personal knowledge vault.
 
 Here is the vault content:
@@ -435,7 +467,7 @@ ${vaultContent}
 ---
 
 Based on the vault content above, answer this question:
-${query}
+${sanitizedQuery}
 
 Be concise and specific. If you can't find relevant information in the vault, say so.
 Cite which files you found the information in when relevant.`;
@@ -471,17 +503,6 @@ Cite which files you found the information in when relevant.`;
   return text;
 }
 
-/**
- * Sync vault from GitHub (placeholder - implement based on your needs)
- */
-async function syncVaultFromGitHub(env) {
-  // This would be called by a GitHub Action after push
-  // The Action would use R2 API to upload changed files
-  return {
-    status: 'ok',
-    message: 'Sync endpoint ready. Configure GitHub Action to push to R2.',
-  };
-}
 
 // Telegram API helpers
 async function sendTelegram(env, chatId, text, options = {}) {

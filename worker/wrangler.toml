@@ -13,6 +13,8 @@ bucket_name = "telegram-brain-vault"
 # GEMINI_API_KEY - set via: wrangler secret put GEMINI_API_KEY
 # ALLOWED_USER_ID - your Telegram user ID for auth
 # WEBHOOK_SECRET - Telegram webhook validation (set via: wrangler secret put WEBHOOK_SECRET)
+# GITHUB_TOKEN - for auto-sync to git (set via: wrangler secret put GITHUB_TOKEN)
+# GITHUB_REPO - your vault repo (set via: wrangler secret put GITHUB_REPO) e.g. "username/vault-repo"
 
 [vars]
 MODEL = "gemini-2.5-flash-lite"

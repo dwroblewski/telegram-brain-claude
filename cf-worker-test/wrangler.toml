@@ -1,6 +1,0 @@
-name = "gemini-limit-test"
-main = "src/index.js"
-compatibility_date = "2024-01-01"
-
-[vars]
-# GEMINI_API_KEY will be set via wrangler secret

@@ -123,9 +123,47 @@ npx wrangler tail
 ```
 worker/           # Cloudflare Worker (main bot)
 scripts/          # Sync and deploy scripts
-phase0-tests/     # Model selection and validation tests
-cf-worker-test/   # Isolated API testing
+tests/            # Unit tests (run: node tests/worker.test.js)
+docs/             # Architecture validation and decisions
 ```
+
+## Troubleshooting
+
+### Sync fails with 403 error
+
+R2 API tokens with "Object Read/Write" permission can fail with 403. Use "Admin Read & Write" instead.
+
+```bash
+# Cloudflare Dashboard → R2 → Manage R2 API Tokens
+# Create new token with: Admin Read & Write (not Object Read/Write)
+```
+
+### GitHub auto-sync not triggering
+
+Fine-grained GitHub tokens with "Actions: Read and write" cannot trigger repository_dispatch. You need "Contents: Read and write".
+
+```bash
+# GitHub → Settings → Developer settings → Fine-grained tokens
+# Required: Contents: Read and write
+```
+
+### Query times out
+
+Queries over 25s will timeout. This usually means the vault context is too large or Gemini is slow.
+
+1. Check vault size: `wc -c /tmp/vault_context.md` (should be <500KB)
+2. Reduce `VAULT_DEPTH` in `.env` (default: 3)
+3. Try again - Gemini has occasional slow responses
+
+### Bot not responding
+
+1. Check webhook is set: `curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo`
+2. Check worker health: `curl <WORKER_URL>/health`
+3. Check logs: `cd worker && npx wrangler tail`
+
+### Vault not updating after sync
+
+Sync pushes to R2, but bot might have cached old content. Queries always fetch fresh from R2, so just wait or re-query.
 
 ## Security
 
