@@ -11,6 +11,8 @@ No database, no always-on compute, no subscription fees.
 
 ## Quick Start
 
+**Tip:** Let Claude Code (or similar) handle setup. Paste this README and say "help me set this up" — it can run the commands, create tokens, and troubleshoot issues.
+
 For experienced users who know Cloudflare Workers and GitHub Actions:
 
 ```bash
