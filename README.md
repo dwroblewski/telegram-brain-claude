@@ -111,7 +111,7 @@ Two workflows keep your vault and R2 in sync. Both required.
 
 **3b. Create GitHub token** (for capture → git sync)
 1. GitHub → Settings → Developer settings → Fine-grained tokens
-2. Create token with **Contents: Read and write** permission (not Actions — won't work)
+2. Create token with **Contents: Read and write** permission (required for repository_dispatch)
 3. This is the `GITHUB_TOKEN` you set in Step 2
 
 **3c. Add workflows to your vault repo**
@@ -175,11 +175,11 @@ Create new token with: Admin Read & Write
 
 ### GitHub auto-sync not triggering
 
-Fine-grained tokens with "Actions: Read and write" cannot trigger repository_dispatch. You need "Contents: Read and write".
+Fine-grained tokens need "Contents: Read and write" to trigger repository_dispatch. "Actions" permission alone won't work.
 
 ```
 GitHub → Settings → Developer settings → Fine-grained tokens
-Required permission: Contents: Read and write
+Required: Contents: Read and write
 ```
 
 ### Query times out
