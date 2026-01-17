@@ -4,7 +4,7 @@ A serverless Telegram bot that captures notes and queries your second brain usin
 
 ## Cost
 
-- **Capture:** Free (Cloudflare Worker free tier, GitHub Actions free tier, R2 free tier)
+- **Capture:** Free within free tiers (Cloudflare Workers, GitHub Actions, R2) — plenty for personal use
 - **Query:** A couple bucks per month in Gemini API costs, depending on usage
 
 No database, no always-on compute, no subscription fees.
