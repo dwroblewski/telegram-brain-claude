@@ -67,6 +67,12 @@ export default {
         return jsonResponse(result);
       }
 
+      // Export captures endpoint - list all telegram captures in R2
+      if (url.pathname === '/captures/export') {
+        const captures = await exportCaptures(env);
+        return jsonResponse(captures);
+      }
+
       return jsonResponse({ error: 'Not found' }, 404);
     } catch (error) {
       console.error('Worker error:', error);
@@ -257,6 +263,45 @@ _Run sync-vault.sh to update context_`;
   } catch (error) {
     console.error('Stats error:', error);
     await sendTelegram(env, chatId, `❌ ${error.message}`);
+  }
+}
+
+/**
+ * Export all Telegram captures from R2
+ * Returns JSON with all capture files and their content
+ */
+async function exportCaptures(env) {
+  try {
+    // List all telegram captures in inbox
+    const listed = await env.VAULT.list({ prefix: '0-Inbox/telegram-', limit: 1000 });
+
+    if (!listed.objects || listed.objects.length === 0) {
+      return { captures: [], count: 0 };
+    }
+
+    // Get content of each capture
+    const captures = [];
+    for (const obj of listed.objects) {
+      const file = await env.VAULT.get(obj.key);
+      if (file) {
+        const content = await file.text();
+        captures.push({
+          key: obj.key,
+          filename: obj.key.split('/').pop(),
+          uploaded: obj.uploaded,
+          content: content,
+        });
+      }
+    }
+
+    return {
+      captures: captures,
+      count: captures.length,
+      exported_at: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('Export error:', error);
+    return { error: error.message };
   }
 }
 
