@@ -1,61 +1,110 @@
 # GitHub Sync Setup
 
-One-time setup to enable automatic capture sync from R2 to GitHub.
+Complete setup for bidirectional sync between your vault and the Telegram bot.
 
-## Step 1: Create Fine-Grained GitHub Token
+## Overview
+
+Two workflows are needed in your vault repo:
+
+| Workflow | Direction | Trigger |
+|----------|-----------|---------|
+| `sync-vault.yml` | Vault → R2 | Push to main |
+| `sync-capture.yml` | R2 → Vault | Worker sends repository_dispatch |
+
+## Step 1: Create R2 API Token
+
+1. Go to: Cloudflare Dashboard → R2 → Manage R2 API Tokens
+2. Create token:
+   - **Name**: `github-actions-sync`
+   - **Permissions**: Admin Read & Write (not Object Read/Write - has known 403 bug)
+   - **Bucket scope**: Your bucket only
+3. Save the Access Key ID and Secret Access Key
+
+## Step 2: Add Secrets to Your Vault Repo
+
+Go to: GitHub → Your vault repo → Settings → Secrets → Actions
+
+Add these secrets:
+
+| Secret | Value |
+|--------|-------|
+| `R2_ACCESS_KEY_ID` | Access Key ID from Step 1 |
+| `R2_SECRET_ACCESS_KEY` | Secret Access Key from Step 1 |
+| `R2_ACCOUNT_ID` | Your Cloudflare Account ID |
+| `TELEGRAM_BOT_TOKEN` | (Optional) For failure notifications |
+| `TELEGRAM_CHAT_ID` | (Optional) Your Telegram user ID |
+
+## Step 3: Add Workflows to Your Vault Repo
+
+Copy the workflow files to your vault repo:
+
+```bash
+# From your vault repo root
+mkdir -p .github/workflows
+
+# Copy from telegram-brain-claude
+cp /path/to/telegram-brain-claude/scripts/workflows/sync-vault.yml .github/workflows/
+cp /path/to/telegram-brain-claude/scripts/workflows/sync-capture.yml .github/workflows/
+
+git add .github/workflows/
+git commit -m "feat: Add telegram-brain sync workflows"
+git push
+```
+
+## Step 4: Create GitHub Token for Worker
 
 1. Go to: https://github.com/settings/tokens?type=beta
 2. Click "Generate new token"
 3. Configure:
-   - **Name**: `telegram-brain-capture-sync`
-   - **Expiration**: 90 days (or longer)
-   - **Repository access**: Only select repositories → `dwroblewski/second-brain`
+   - **Name**: `telegram-brain-worker`
+   - **Expiration**: 90 days (or custom)
+   - **Repository access**: Only select repositories → Your vault repo
    - **Permissions**:
      - **Contents**: Read and write (required for repository_dispatch)
-     - **Actions**: Read and write (to trigger workflows)
-4. Generate and copy token
+4. Copy the token
 
-## Step 2: Add Token to Cloudflare Worker
-
-```bash
-cd ~/projects/telegram-brain-claude/worker
-npx wrangler secret put GITHUB_TOKEN
-# Paste the token when prompted
-```
-
-## Step 3: Deploy Worker
+## Step 5: Add Token to Cloudflare Worker
 
 ```bash
-cd ~/projects/telegram-brain-claude
-./scripts/deploy.sh
+cd worker
+npx wrangler secret put GITHUB_TOKEN    # Paste token
+npx wrangler secret put GITHUB_REPO     # e.g., "yourusername/your-vault"
 ```
 
-## Step 4: Push GitHub Action to second-brain
+## Step 6: Test
 
+**Test vault → R2:**
 ```bash
-cd ~/projects/second-brain
-git add .github/workflows/sync-capture.yml
-git commit -m "feat: Add telegram capture sync workflow"
-git push
+# Make a small change to your vault
+echo "<!-- test -->" >> QUICKFACTS.md
+git add QUICKFACTS.md && git commit -m "test: trigger sync" && git push
+
+# Check GitHub Actions - "Sync Vault to R2" should run
+# Check worker health - vault size should update
+curl https://your-worker.workers.dev/health
 ```
 
-## Step 5: Test
-
-Send a message to your Telegram bot. Check:
-1. Bot reacts with 👍 (R2 save succeeded)
-2. GitHub Actions shows "Sync Telegram Capture" run
-3. File appears in `0-Inbox/telegram-*.md`
+**Test capture → git:**
+1. Send any message to your Telegram bot
+2. Bot should react with 👍
+3. Check GitHub Actions - "Sync Telegram Capture" should run
+4. File should appear in `0-Inbox/telegram-*.md`
 
 ## Troubleshooting
 
-**Action not triggering?**
-- Check worker logs: `cd worker && npx wrangler tail`
-- Verify GITHUB_TOKEN is set: `npx wrangler secret list`
+**Vault sync fails with 403?**
+- Use "Admin Read & Write" permission, not "Object Read/Write"
+- See: https://github.com/cloudflare/workers-sdk/issues/9235
 
-**Action fails on R2 download?**
-- Verify R2 secrets exist in GitHub: Settings → Secrets → Actions
-- Required: `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`
+**Capture sync not triggering?**
+- Check worker has GITHUB_TOKEN and GITHUB_REPO secrets
+- Verify token has "Contents: Read and write" permission
+- Note: "Actions: Read and write" alone won't work
+
+**Capture sync fails on R2 download?**
+- Verify R2 secrets in GitHub (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ACCOUNT_ID)
+- Check bucket name matches in workflow file
 
 **Filename validation fails?**
-- Worker generates `telegram-YYYY-MM-DDTHH-MM-SS-MMMZ.md` format
-- If format changed, update regex in `sync-capture.yml`
+- Worker generates `telegram-YYYY-MM-DDTHH-MM-SS-MSSZ.md` format
+- If you modified the worker, update regex in sync-capture.yml

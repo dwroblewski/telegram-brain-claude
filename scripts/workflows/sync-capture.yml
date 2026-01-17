@@ -1,0 +1,75 @@
+# Sync Telegram Capture to Git
+#
+# Copy this file to your vault repo: .github/workflows/sync-capture.yml
+#
+# Required secrets in your vault repo:
+#   R2_ACCESS_KEY_ID     - Cloudflare R2 API token access key
+#   R2_SECRET_ACCESS_KEY - Cloudflare R2 API token secret
+#   R2_ACCOUNT_ID        - Cloudflare account ID
+#
+# This workflow is triggered by the Cloudflare Worker via repository_dispatch
+# when a new capture is saved to R2.
+
+name: Sync Telegram Capture
+
+on:
+  repository_dispatch:
+    types: [telegram_capture]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Validate filename
+        env:
+          FILENAME: ${{ github.event.client_payload.filename }}
+        run: |
+          # Strict validation: only allow telegram-TIMESTAMP.md format
+          if [[ ! "$FILENAME" =~ ^telegram-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]+Z\.md$ ]]; then
+            echo "ERROR: Invalid filename format: $FILENAME"
+            exit 1
+          fi
+          echo "Filename validated: $FILENAME"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull capture from R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          FILENAME: ${{ github.event.client_payload.filename }}
+        run: |
+          echo "Pulling: $FILENAME"
+
+          aws s3 cp \
+            "s3://telegram-brain-vault/0-Inbox/${FILENAME}" \
+            "0-Inbox/${FILENAME}" \
+            --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+          echo "Downloaded: $(wc -c < "0-Inbox/${FILENAME}") bytes"
+
+      - name: Commit and push
+        env:
+          FILENAME: ${{ github.event.client_payload.filename }}
+        run: |
+          git config user.name "telegram-brain-bot"
+          git config user.email "bot@telegram-brain.local"
+
+          git add "0-Inbox/${FILENAME}"
+
+          # Check if there's actually something to commit
+          if git diff --staged --quiet; then
+            echo "File already exists, skipping"
+            exit 0
+          fi
+
+          git commit -m "capture: ${FILENAME}"
+          git push

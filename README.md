@@ -146,10 +146,11 @@ npx wrangler tail
 ## Files
 
 ```
-worker/           # Cloudflare Worker (main bot)
-scripts/          # Sync and deploy scripts
-tests/            # Unit tests (run: node tests/worker.test.js)
-docs/             # Architecture validation and decisions
+worker/              # Cloudflare Worker (main bot)
+scripts/             # Sync and deploy scripts
+scripts/workflows/   # GitHub Action workflows for your vault repo
+tests/               # Unit tests (run: node tests/worker.test.js)
+docs/                # Architecture validation and decisions
 ```
 
 ## Troubleshooting

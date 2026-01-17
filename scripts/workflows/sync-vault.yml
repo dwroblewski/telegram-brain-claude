@@ -1,0 +1,107 @@
+# Sync Vault to R2
+#
+# Copy this file to your vault repo: .github/workflows/sync-vault.yml
+#
+# Required secrets in your vault repo:
+#   R2_ACCESS_KEY_ID     - Cloudflare R2 API token access key
+#   R2_SECRET_ACCESS_KEY - Cloudflare R2 API token secret
+#   R2_ACCOUNT_ID        - Cloudflare account ID
+#   TELEGRAM_BOT_TOKEN   - For failure notifications (optional)
+#   TELEGRAM_CHAT_ID     - Your Telegram user ID (optional)
+
+name: Sync Vault to R2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Areas/**'
+      - 'Projects/**'
+      - 'Resources/**'
+      - 'QUICKFACTS.md'
+      - 'VAULT-INDEX.md'
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout vault
+        uses: actions/checkout@v4
+
+      - name: Aggregate vault context
+        run: |
+          echo "Building vault context..."
+          OUTPUT_FILE="_vault_context.md"
+
+          # Priority files first
+          for pf in QUICKFACTS.md VAULT-INDEX.md; do
+            if [ -f "$pf" ]; then
+              echo "## File: $pf" >> "$OUTPUT_FILE"
+              cat "$pf" >> "$OUTPUT_FILE"
+              echo -e "\n" >> "$OUTPUT_FILE"
+            fi
+          done
+
+          # PARA folders (Areas, Projects, Resources)
+          for folder in Areas Projects Resources; do
+            if [ ! -d "$folder" ]; then continue; fi
+
+            find "./$folder" -maxdepth 3 -name "*.md" -type f | while read -r file; do
+              # Stop at 500KB
+              current_size=$(wc -c < "$OUTPUT_FILE" 2>/dev/null || echo 0)
+              if [ "$current_size" -gt 500000 ]; then
+                echo "Size limit reached"
+                break
+              fi
+
+              relpath="${file#./}"
+              echo "## File: $relpath" >> "$OUTPUT_FILE"
+              cat "$file" >> "$OUTPUT_FILE"
+              echo -e "\n" >> "$OUTPUT_FILE"
+            done
+          done
+
+          # Report size
+          SIZE=$(wc -c < "$OUTPUT_FILE")
+          echo "Aggregated context: $((SIZE / 1024))KB"
+
+      - name: Upload to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          aws s3 cp _vault_context.md \
+            s3://telegram-brain-vault/_vault_context.md \
+            --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" \
+            --content-type "text/markdown"
+
+          echo "Upload complete"
+
+      - name: Verify upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          aws s3 ls \
+            s3://telegram-brain-vault/_vault_context.md \
+            --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            curl -s -X POST \
+              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -d "chat_id=${TELEGRAM_CHAT_ID}" \
+              -d "text=❌ Vault sync to R2 failed. Check GitHub Actions."
+          fi
