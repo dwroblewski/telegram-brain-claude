@@ -9,12 +9,12 @@ A serverless Telegram bot that captures notes and queries your second brain usin
 │  Telegram   │────▶│  Cloudflare Worker │────▶│  R2 Storage │
 │  (phone)    │◀────│  (edge, serverless)│◀────│  (vault)    │
 └─────────────┘     └────────────────────┘     └─────────────┘
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │  Gemini AI  │
-                     │  (queries)  │
-                     └─────────────┘
+                            │                        │
+                            ▼                        ▼
+                     ┌─────────────┐          ┌─────────────┐
+                     │  Gemini AI  │          │ GitHub Sync │
+                     │  (queries)  │          │ (auto-commit)│
+                     └─────────────┘          └─────────────┘
 ```
 
 **Why serverless?** No VM to maintain, no systemd services, auto-scaling, runs at the edge.
@@ -29,6 +29,16 @@ A serverless Telegram bot that captures notes and queries your second brain usin
 | `/health` | Check bot status |
 | `/help` | List commands |
 | `<any text>` | Capture to inbox |
+
+## Auto-Sync
+
+Captures automatically commit to your vault repo:
+1. Message saved to R2 (instant)
+2. GitHub Action triggered via repository_dispatch
+3. Action pulls from R2 and commits
+4. ~3 seconds end-to-end
+
+Setup: See `scripts/setup-github-sync.md`
 
 ## Setup
 

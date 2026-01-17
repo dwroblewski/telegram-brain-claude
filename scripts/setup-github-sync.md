@@ -11,7 +11,7 @@ One-time setup to enable automatic capture sync from R2 to GitHub.
    - **Expiration**: 90 days (or longer)
    - **Repository access**: Only select repositories → `dwroblewski/second-brain`
    - **Permissions**:
-     - **Contents**: No access (we don't write directly)
+     - **Contents**: Read and write (required for repository_dispatch)
      - **Actions**: Read and write (to trigger workflows)
 4. Generate and copy token
 
