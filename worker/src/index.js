@@ -138,8 +138,9 @@ async function handleCapture(env, chatId, messageId, text) {
   console.log(`Capture: chatId=${chatId}, messageId=${messageId}, text=${text.substring(0, 50)}`);
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `0-Inbox/telegram-${timestamp}.md`;
-    console.log(`Writing to R2: ${filename}`);
+    const filename = `telegram-${timestamp}.md`;
+    const r2Key = `0-Inbox/${filename}`;
+    console.log(`Writing to R2: ${r2Key}`);
 
     const content = `#telegram #capture
 
@@ -149,15 +150,52 @@ ${text}
 *Captured via Telegram: ${new Date().toISOString()}*
 `;
 
-    await env.VAULT.put(filename, content, {
+    await env.VAULT.put(r2Key, content, {
       httpMetadata: { contentType: 'text/markdown' },
     });
+
+    // Trigger GitHub sync (fire-and-forget, don't block on failure)
+    notifyGitHub(filename, env).catch(e => console.log(`GitHub notify failed: ${e.message}`));
 
     // Confirm capture with reaction (thumbs up) and silent message
     await reactToMessage(env, chatId, messageId, '👍');
   } catch (error) {
     console.error('Capture error:', error);
     await sendTelegram(env, chatId, `❌ Capture failed: ${error.message}`);
+  }
+}
+
+/**
+ * Notify GitHub to sync capture from R2 (fire-and-forget)
+ * Uses repository_dispatch to trigger sync-capture.yml workflow
+ */
+async function notifyGitHub(filename, env) {
+  if (!env.GITHUB_TOKEN) {
+    console.log('GitHub sync disabled: no GITHUB_TOKEN');
+    return;
+  }
+
+  const response = await fetch(
+    'https://api.github.com/repos/dwroblewski/second-brain/dispatches',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'telegram-brain-worker',
+      },
+      body: JSON.stringify({
+        event_type: 'telegram_capture',
+        client_payload: { filename },
+      }),
+    }
+  );
+
+  if (response.status === 204) {
+    console.log(`GitHub: triggered sync for ${filename}`);
+  } else {
+    const text = await response.text();
+    console.log(`GitHub: unexpected ${response.status} - ${text}`);
   }
 }
 
