@@ -36,13 +36,17 @@ The bot solves mobile capture. Claude Code solves everything else. They work tog
 │  Telegram   │────▶│  Cloudflare Worker │────▶│  R2 Storage │
 │  (phone)    │◀────│  (edge, serverless)│◀────│  (vault)    │
 └─────────────┘     └────────────────────┘     └─────────────┘
-                            │                        │
-                            ▼                        ▼
-                     ┌─────────────┐          ┌─────────────┐
-                     │  Gemini AI  │          │ GitHub Sync │
-                     │  (queries)  │          │ (auto-commit)│
-                     └─────────────┘          └─────────────┘
+                            │                        ↑↓
+                            ▼                  ┌─────────────┐
+                     ┌─────────────┐           │ GitHub Repo │
+                     │  Gemini AI  │           │ (your vault)│
+                     │  (queries)  │           └─────────────┘
+                     └─────────────┘
 ```
+
+R2 ↔ GitHub sync is bidirectional:
+- **Capture → Git**: Worker triggers Action to commit new captures
+- **Vault → R2**: Push to main triggers Action to update query context
 
 **Why serverless?** No VM to maintain, no systemd services, auto-scaling, runs at the edge.
 
@@ -59,15 +63,23 @@ The bot solves mobile capture. Claude Code solves everything else. They work tog
 | `/help` | List commands |
 | `<any text>` | Capture to inbox |
 
-## Auto-Sync
+## Bidirectional Sync
 
-Captures automatically commit to your vault repo:
+Two GitHub Actions keep your vault and R2 in sync:
+
+**Capture → Git** (when you message the bot):
 1. Message saved to R2 (instant)
-2. GitHub Action triggered via repository_dispatch
-3. Action pulls from R2 and commits
+2. Worker triggers repository_dispatch
+3. `sync-capture.yml` pulls from R2 and commits
 4. ~3 seconds end-to-end
 
-Setup: See `scripts/setup-github-sync.md`
+**Vault → R2** (when you edit your vault):
+1. Push changes to your vault repo
+2. `sync-vault.yml` aggregates markdown files
+3. Uploads `_vault_context.md` to R2
+4. Next `/ask` query uses updated content
+
+Setup: See `scripts/setup-github-sync.md` for both workflows.
 
 ## Setup
 
@@ -99,7 +111,7 @@ npx wrangler secret put ALLOWED_USER_ID
 npx wrangler secret put GITHUB_TOKEN    # Fine-grained token with Contents:write
 npx wrangler secret put GITHUB_REPO     # e.g., "username/vault-repo"
 
-# Sync vault to R2
+# Initial vault sync to R2 (one-time, before GitHub Action is set up)
 ./scripts/sync-vault.sh
 
 # Deploy worker
@@ -112,25 +124,34 @@ npx wrangler secret put GITHUB_REPO     # e.g., "username/vault-repo"
 curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<WORKER_URL>/webhook"
 ```
 
-### GitHub Auto-Sync
+### GitHub Bidirectional Sync
 
-Captures are saved to R2 instantly, but need GitHub sync to reach your vault repo (and be included in future queries).
+Two workflows keep R2 and your vault repo in sync. Both are required for full functionality.
 
-1. **Create a fine-grained GitHub token:**
-   - Go to GitHub → Settings → Developer settings → Fine-grained tokens
-   - Create token with access to your vault repo
-   - Required permission: **Contents: Read and write**
-   - Note: "Actions: Read and write" alone won't work for repository_dispatch
+**Step 1: Create R2 API token** (for vault → R2)
+- Cloudflare Dashboard → R2 → Manage R2 API Tokens
+- Permission: **Admin Read & Write** (not Object Read/Write)
+- Add to your vault repo's GitHub secrets: `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`
 
-2. **Set the secrets in Cloudflare:**
-   ```bash
-   cd worker
-   npx wrangler secret put GITHUB_TOKEN    # Paste your token
-   npx wrangler secret put GITHUB_REPO     # e.g., "username/vault-repo"
-   ```
+**Step 2: Create GitHub token** (for capture → git)
+- GitHub → Settings → Developer settings → Fine-grained tokens
+- Permission: **Contents: Read and write** (not Actions)
+- Add to Cloudflare Worker secrets:
+  ```bash
+  cd worker
+  npx wrangler secret put GITHUB_TOKEN
+  npx wrangler secret put GITHUB_REPO     # e.g., "username/vault-repo"
+  ```
 
-3. **Set up the GitHub Action** in your vault repo:
-   - See `scripts/setup-github-sync.md` for the workflow file
+**Step 3: Add workflows to your vault repo**
+```bash
+mkdir -p .github/workflows
+cp scripts/workflows/sync-vault.yml .github/workflows/
+cp scripts/workflows/sync-capture.yml .github/workflows/
+git add .github/workflows && git commit -m "Add telegram-brain sync" && git push
+```
+
+See `scripts/setup-github-sync.md` for detailed setup and troubleshooting.
 
 ## Development
 
