@@ -15,7 +15,7 @@ For experienced users who know Cloudflare Workers and GitHub Actions:
 
 ```bash
 # 1. Clone and configure
-git clone https://github.com/yourusername/telegram-brain-claude
+git clone https://github.com/dwroblewski/telegram-brain-claude
 cd telegram-brain-claude && cp .env.example .env
 
 # 2. Set Cloudflare secrets
