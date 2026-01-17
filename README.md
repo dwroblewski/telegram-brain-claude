@@ -88,11 +88,15 @@ cp .env.example .env
 ### Deploy
 
 ```bash
-# Set secrets
+# Set secrets (required)
 cd worker
 npx wrangler secret put TELEGRAM_BOT_TOKEN
 npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put ALLOWED_USER_ID
+
+# Set secrets (optional - for auto-sync to git)
+npx wrangler secret put GITHUB_TOKEN    # Fine-grained token with Contents:write
+npx wrangler secret put GITHUB_REPO     # e.g., "username/vault-repo"
 
 # Sync vault to R2
 ./scripts/sync-vault.sh
