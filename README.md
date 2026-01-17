@@ -75,8 +75,9 @@ Setup: See `scripts/setup-github-sync.md`
 
 - Cloudflare account with R2 enabled
 - Telegram bot token (from [@BotFather](https://t.me/BotFather))
-- Gemini API key
+- Gemini API key (from [AI Studio](https://aistudio.google.com/app/apikey))
 - Your Telegram user ID (from [@userinfobot](https://t.me/userinfobot))
+- GitHub repository for your vault (for auto-sync, optional)
 
 ### Configuration
 
@@ -110,6 +111,26 @@ npx wrangler secret put GITHUB_REPO     # e.g., "username/vault-repo"
 ```bash
 curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=<WORKER_URL>/webhook"
 ```
+
+### GitHub Auto-Sync (Optional)
+
+To automatically commit captures to your vault repo:
+
+1. **Create a fine-grained GitHub token:**
+   - Go to GitHub → Settings → Developer settings → Fine-grained tokens
+   - Create token with access to your vault repo
+   - Required permission: **Contents: Read and write**
+   - Note: "Actions: Read and write" alone won't work for repository_dispatch
+
+2. **Set the secrets in Cloudflare:**
+   ```bash
+   cd worker
+   npx wrangler secret put GITHUB_TOKEN    # Paste your token
+   npx wrangler secret put GITHUB_REPO     # e.g., "username/vault-repo"
+   ```
+
+3. **Set up the GitHub Action** in your vault repo:
+   - See `scripts/setup-github-sync.md` for the workflow file
 
 ## Development
 

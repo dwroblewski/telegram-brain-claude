@@ -3,8 +3,9 @@
  *
  * Endpoints:
  * - POST /webhook - Telegram webhook handler
- * - GET /health - Health check
- * - POST /sync - Trigger vault sync from GitHub (called by GitHub Action)
+ * - GET /health - Health check with vault verification
+ * - POST /test - Smoke test (no persistence)
+ * - GET /captures/export - Export all captures as JSON
  */
 
 export default {
