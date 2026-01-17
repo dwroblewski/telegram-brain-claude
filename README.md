@@ -2,16 +2,6 @@
 
 A serverless Telegram bot that captures notes and queries your second brain using AI.
 
-## Who This Is For
-
-You'll need comfort with:
-- Command line (npm, wrangler CLI)
-- Cloudflare account setup
-- GitHub Actions
-- Environment variables and API keys
-
-If that sounds intimidating, check out simpler approaches like Google Forms + Apps Script or local Python scripts.
-
 ## Cost
 
 - **Capture:** Free (Cloudflare Worker free tier, GitHub Actions free tier, R2 free tier)
