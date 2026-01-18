@@ -130,6 +130,9 @@ async function handleTelegramUpdate(update, env) {
     await handleStatsCommand(env, chatId);
   } else if (text === '/health') {
     await sendTelegram(env, chatId, '✅ Bot is running');
+  } else if (text === '/digest' || text === '/digest morning' || text === '/digest evening') {
+    const type = text.includes('evening') ? 'evening' : 'morning';
+    await handleDigestCommand(env, chatId, type);
   } else if (text.startsWith('/')) {
     // Unknown command
     await sendTelegram(env, chatId, `Unknown command. Try /help`);
@@ -215,6 +218,8 @@ async function handleHelpCommand(env, chatId) {
 
 📝 *Capture* - Just send any text
 /ask <query> - Query your vault
+/digest - Trigger morning digest now
+/digest evening - Trigger evening digest
 /recent - Show recent captures
 /stats - Vault statistics
 /health - Check bot status
@@ -223,6 +228,47 @@ async function handleHelpCommand(env, chatId) {
 _Tip: Send links, ideas, or notes - they're saved to your inbox for processing._`;
 
   await sendTelegram(env, chatId, help);
+}
+
+/**
+ * Handle /digest command - trigger daily digest workflow
+ */
+async function handleDigestCommand(env, chatId, type) {
+  if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) {
+    await sendTelegram(env, chatId, '❌ GitHub sync not configured');
+    return;
+  }
+
+  try {
+    await sendTelegram(env, chatId, `⏳ Triggering ${type} digest...`);
+
+    const response = await fetch(
+      `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/daily-digest.yml/dispatches`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'telegram-brain-worker',
+        },
+        body: JSON.stringify({
+          ref: 'main',
+          inputs: { digest_type: type },
+        }),
+      }
+    );
+
+    if (response.status === 204) {
+      await sendTelegram(env, chatId, `✅ ${type} digest triggered - check Telegram in ~10s`);
+    } else {
+      const text = await response.text();
+      console.log(`Digest trigger failed: ${response.status} - ${text}`);
+      await sendTelegram(env, chatId, `❌ Failed: ${response.status}`);
+    }
+  } catch (error) {
+    console.error('Digest trigger error:', error);
+    await sendTelegram(env, chatId, `❌ ${error.message}`);
+  }
 }
 
 /**
